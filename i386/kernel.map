@@ -1,0 +1,45 @@
+
+Discarded input sections
+
+ .comment       0x00000000       0x13 main.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0x00100000                        . = 0x100000
+
+.text           0x00100000       0x2b
+ *(.text)
+ .text          0x00100000       0x26 boot.o
+                0x00100000                _entry
+ .text          0x00100026        0x5 main.o
+                0x00100026                main
+ *(.text.*)
+
+.rodata
+ *(.rodata)
+ *(.rodata.*)
+
+.data           0x0010002b        0xb
+ *(.data)
+ .data          0x0010002b        0xb boot.o
+ .data          0x00100036        0x0 main.o
+ *(.data.*)
+
+.bss            0x00101000     0x5000
+ *(.bss)
+ .bss           0x00101000     0x5000 boot.o
+ .bss           0x00106000        0x0 main.o
+ *(.bss.*)
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note.*)
+LOAD boot.o
+LOAD main.o
+OUTPUT(kernel.bin binary)
