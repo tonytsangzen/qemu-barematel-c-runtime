@@ -1,151 +1,66 @@
 #include <stdint.h>
+#include <stdio.h>
+#include "mm.h"
+#include "mmu_arch.h"
 
-#define KB 1024
-#define MB (1024 * KB)
-#define GB (1024 * MB)
+#define ALIGN_DOWN(x, a) ((x) & ~((a)-1))
+#define ALIGN_UP(x, a)   (((x)+(a)-1) & ~((a)-1))
 
-#define PAGE_SIZE (4 * KB)
-#define PAGE_TABLE_SIZE (4 * KB)
+/* unmap_page clears the mapping for the given virtual address */
+void unmap_page(page_dir_entry_t *vm, uint64_t virtual_addr) {
+	page_table_entry_t *l2_table = 0;
+	page_table_entry_t *l3_table = 0;
 
-#define PAGE_DIR_NUM 1024
-#define PAGE_DIR_SIZE (PAGE_DIR_NUM * 4)
+	uint32_t l1_index = PAGE_L1_INDEX(virtual_addr);
+	uint32_t l2_index = PAGE_L2_INDEX(virtual_addr);
+	uint32_t l3_index = PAGE_L3_INDEX(virtual_addr);
 
-#define PDE_SHIFT 21
-#define NUM_PAGE_DIRS 512
-#define NUM_PAGE_TABLE_ENTRIES 4096
-// support 0 - 4GB @ aarch64 mode
+	if(vm[l1_index].EntryType != 0){
+		l2_table = (page_dir_entry_t*)P2V(vm[l1_index].Address << 12);
+		if(l2_table[l2_index].EntryType != 0){
+			l3_table = (page_dir_entry_t*)P2V(l2_table[l2_index].Address << 12);
+			l3_table[l3_index].EntryType = 0;	
+		}
+	}
+}
 
-#define PAGE_L1_INDEX(x) (((uint64_t)x >> 30) & 0x1FF)
-#define PAGE_L2_INDEX(x) (((uint64_t)x >> 21) & 0x1FF)
-#define PAGE_L3_INDEX(x) (((uint64_t)x >> 12) & 0x1FF)
+void map_pages(page_dir_entry_t *vm, uint64_t vaddr, uint64_t pstart, uint64_t pend, uint32_t permissions, uint32_t pte_attr) {
+    uint64_t physical_current = 0;
+    uint64_t virtual_current = 0;
 
-#define PAGE_TABLE_TO_BASE(x) ((uint32_t)x >> 10)
-#define BASE_TO_PAGE_TABLE(x) ((void *)((uint32_t)x << 10))
-#define PAGE_TO_BASE(x) ((uint32_t)x >> 12)
+    uint64_t virtual_start = ALIGN_DOWN(vaddr, PAGE_SIZE);
+    uint64_t physical_start = ALIGN_DOWN(pstart, PAGE_SIZE);
+    uint64_t physical_end = ALIGN_UP( pend, PAGE_SIZE);
 
-#define TYPE_INVALID 0
-#define TYPE_BLOCK 1
-#define TYPE_PAGE 3
-#define TYPE_TABLE 3
-
-#define MT_DEVICE_NGNRNE 0
-#define MT_DEVICE_NGNRE 1
-#define MT_NORMAL_NC 2
-#define MT_NORMAL 3
-
-typedef struct
-{
-    uint64_t EntryType : 2; // @0-1     1 for a block table, 3 for a page table
-    uint64_t MemAttr : 4;   // @2-5
-    enum
-    {
-        STAGE2_S2AP_NOREAD_EL0 = 1, //          No read access for EL0
-        STAGE2_S2AP_NO_WRITE = 2,   //          No write access
-    } S2AP : 2;                     // @6-7
-    enum
-    {
-        STAGE2_SH_OUTER_SHAREABLE = 2, //          Outter shareable
-        STAGE2_SH_INNER_SHAREABLE = 3, //          Inner shareable
-    } SH : 2;                          // @8-9
-    uint64_t AF : 1;                   // @10      Accessable flag
-    uint64_t PTE_NG : 1;               // @11      no global
-    uint64_t Address : 36;             // @12-47   36 Bits of address
-    uint64_t _reserved48_51 : 4;       // @48-51   Set to 0
-    uint64_t Contiguous : 1;           // @52      Contiguous
-    uint64_t PXN : 1;                  // @53     kernel No execute if bit set
-    uint64_t UXN : 1;                  // @54     user No execute if bit set
-    uint64_t _reserved55_58 : 4;       // @55-58   Set to 0
-    uint64_t PXNTable : 1;             // @59      Never allow execution from a lower EL level
-    uint64_t XNTable : 1;              // @60      Never allow translation from a lower EL level
-    enum
-    {
-        APTABLE_NOEFFECT = 0,         // No effect
-        APTABLE_NO_EL0 = 1,           // Access at EL0 not permitted, regardless of permissions in subsequent levels of lookup
-        APTABLE_NO_WRITE = 2,         // Write access not permitted, at any Exception level, regardless of permissions in subsequent levels of lookup
-        APTABLE_NO_WRITE_EL0_READ = 3 // Write access not permitted, at any Exception level, Read access not permitted at EL0.
-    } APTable : 2;                    // @61-62   AP Table control .. see enumerate options
-    uint64_t NSTable : 1;             // @63      Secure state, for accesses from Non-secure state this bit is RES0 and is ignored
-} page_table_entry_t, page_dir_entry_t;
-
-static __attribute__((__aligned__(PAGE_DIR_SIZE)))
-page_dir_entry_t startup_page_dir[NUM_PAGE_DIRS] = {0};
-
-static __attribute__((__aligned__(PAGE_DIR_SIZE)))
-page_table_entry_t startup_page_table[NUM_PAGE_TABLE_ENTRIES] = {0};
-
-static page_table_entry_t *entry_head;
-
-static void boot_pgt_init(void)
-{
-    entry_head = startup_page_table;
-    for (int i = 0; i < NUM_PAGE_DIRS; i++)
-    {
-        startup_page_dir[i].EntryType = 0;
+    /* iterate over pages and map each page */
+    virtual_current = virtual_start;
+    for (physical_current = physical_start;
+            physical_current < physical_end;
+            physical_current += PAGE_SIZE) {
+        map_page(vm,  virtual_current, physical_current, permissions, pte_attr);
+        virtual_current += PAGE_SIZE;
     }
 }
 
-static page_table_entry_t *get_free_page_table(void)
-{
-    if (entry_head >= &startup_page_table[NUM_PAGE_TABLE_ENTRIES])
-    {
-        /*no more free page table*/
-        while (1)
-            ;
-    }
-
-    page_table_entry_t *entry = entry_head;
-    entry_head += 512;
-    return entry;
+void map_pages_size(page_dir_entry_t *vm, uint64_t vaddr, uint64_t pstart, uint64_t size, uint32_t permissions, uint32_t pte_attr) {
+    map_pages(vm, vaddr, pstart, pstart + size, permissions, pte_attr);
 }
 
-static void set_boot_pgt(uint64_t virt, uint64_t phy, uint32_t len, int is_dev)
-{
-    // convert all the parameters to indexes
-    page_table_entry_t *entry;
-    uint32_t l1 = PAGE_L1_INDEX(virt);
-    uint32_t l2 = PAGE_L2_INDEX(virt);
-
-    if (startup_page_dir[l1].EntryType == 0)
-    {
-        entry = get_free_page_table();
-        startup_page_dir[l1] = (page_dir_entry_t){
-            .NSTable = 1,
-            .EntryType = TYPE_TABLE,
-            .Address = (uint64_t)entry >> 12,
-            .AF = 1};
-    }
-    else
-    {
-        entry = startup_page_dir[l1].Address << 12;
-    }
-
-    phy >>= PDE_SHIFT;
-    len >>= PDE_SHIFT;
-    for (uint32_t idx = 0; idx < len; idx++)
-    {
-        // Each block descriptor (2 MB)
-        entry[l2] = (page_table_entry_t){
-            .NSTable = 1,
-            .EntryType = TYPE_BLOCK,
-            .Address = phy << (21 - 12),
-            .AF = 1,
-            .SH = STAGE2_SH_OUTER_SHAREABLE,
-            .S2AP = 0,
-            .MemAttr = is_dev ? MT_DEVICE_NGNRNE : MT_NORMAL,
-        };
-        l2++;
-        phy++;
+void unmap_pages(page_dir_entry_t *vm, uint64_t virtual_addr, uint64_t pages) {
+    uint64_t i;
+    for(i=0; i<pages; i++) {
+        unmap_page(vm, virtual_addr + PAGE_SIZE*i);
     }
 }
 
-extern void load_boot_pgt(uint32_t page_table);
+extern void load_boot_pgt(page_dir_entry_t *page_table);
+extern uint64_t _page_tbl_start;
 
 void mmu_init(void)
 {
-    boot_pgt_init();
-    set_boot_pgt(0x00000000, 0x00000000, 1 * GB, 1);
-    set_boot_pgt(0x40000000, 0x40000000, 1 * GB, 1);
-    set_boot_pgt(0x80000000, 0x80000000, 1 * GB, 1);
-    set_boot_pgt(0xC0000000, 0xC0000000, 1 * GB, 1);
-    load_boot_pgt(startup_page_dir);
+    mm_init(&_page_tbl_start, 16*MB);
+    page_dir_entry_t *vm = page_calloc(1);
+    map_pages_size(vm, 0x8000000, 0x8000000, 128*MB, 0, PTE_ATTR_DEV);
+    map_pages_size(vm, 0x40000000, 0x40000000, 128*MB, 0, PTE_ATTR_DEV);
+    load_boot_pgt(vm);
 }

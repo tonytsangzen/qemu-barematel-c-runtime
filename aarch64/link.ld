@@ -39,4 +39,12 @@ SECTIONS {
     _heap_start = .;
     . = . + 0x10000; /*64KB*/
     _heap_end = .;
+
+    . = ALIGN(4096);
+    . = . + 0x100000; /*1MB*/
+    
+    . = ALIGN(4096);
+    _page_tbl_start = .;
+    . = . + 0x1000000; /*16MB*/
+    _page_tbl_end = .;
 }

@@ -32,16 +32,15 @@ LDFLAGS += -T $(ARCH)/link.ld
 
 LIBS = -lc -lm -lnosys
 
-all: build/$(TARGET).elf build/$(TARGET).bin  build/$(TARGET).asm size
+all: build/$(TARGET).bin
 
 build/$(TARGET).elf: $(OBJS) | build_dirs
 	$(CC) -Wl,-Map=build/$(TARGET).map $(LDFLAGS) $(OBJS) $(LIBS)  -o $@
+	@$(OBJDUMP) -d $@ >build/$(TARGET).asm
+	@$(SIZE) $<
 
 build/$(TARGET).bin: build/$(TARGET).elf
 	@$(OBJCOPY) -O binary $< $@
-
-build/$(TARGET).asm:  build/$(TARGET).elf
-	@$(OBJDUMP) -d $< >$@
 
 build/%.o: %.c | build_dirs
 	@mkdir -p $(dir $@)
@@ -54,13 +53,10 @@ build/%.o: %.S | build_dirs
 build_dirs:
 	@mkdir -p $(addprefix build/,$(SRC_DIRS))
 
-size: build/$(TARGET).elf
-	@$(SIZE) $<
-
 clean:
 	@rm -rf build
 
-run: build/$(TARGET).elf
+run: build/$(TARGET).bin
 	qemu-system-aarch64 -machine virt -m 128M -cpu $(CPU) -serial mon:stdio -nographic -kernel build/$(TARGET).bin
 
-.PHONY: all clean size build_dirs
+.PHONY: all clean build_dirs
