@@ -11,24 +11,29 @@ PHDRS {
 }
 
 SECTIONS {
+    . = ALIGN(16);
     .text : { 
         KEEP(*(.init))
         *(.text*) 
     }  > RAM : text
 
+    . = ALIGN(16);
     .rodata : {
         *(.rodata*)
     } > RAM :rodata 
 
+    . = ALIGN(16);
     .data : { 
         *(.data*) 
     }  > RAM :data
 
-    .bss : { 
-        _sbss = .;
+    . = ALIGN(16);
+    .bss : {
+        __bss_start = .;
         *(.bss*)
-        _ebss = .;
-    } > RAM
+        *(COMMON)
+        __bss_end = .;
+    } > RAM :data
     
     . = ALIGN(4096);
     _stack_top = .;

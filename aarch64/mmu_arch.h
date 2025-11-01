@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#define V2P(x) ((uint64_t)x)
-#define P2V(x) ((uint64_t)x)
+#define V2P(x) ((uint64_t)(x))
+#define P2V(x) ((uint64_t)(x))
 
 #define KB 1024
 #define MB (1024*KB)

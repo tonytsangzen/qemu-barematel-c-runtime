@@ -23,10 +23,11 @@ CFLAGS += -ffunction-sections -fdata-sections
 CFLAGS += $(INC_FLAGS)
 CFLAGS += -std=c11
 CFLAGS += -fno-builtin-printf
+CFLAGS += -Wno-int-to-pointer-cast
 CFLAGS += -falign-functions=16 
 
 LDFLAGS = -mcpu=$(CPU)
-LDFLAGS += -Wl,--gc-sections -lgcc -lc -lm 
+LDFLAGS += -Wl,--no-gc-sections -lgcc -lc -lm 
 LDFLAGS += -nostdlib -nostartfiles -ffreestanding -specs=nosys.specs
 LDFLAGS += -T $(ARCH)/link.ld
 
@@ -37,7 +38,7 @@ all: build/$(TARGET).bin
 build/$(TARGET).elf: $(OBJS) | build_dirs
 	$(CC) -Wl,-Map=build/$(TARGET).map $(LDFLAGS) $(OBJS) $(LIBS)  -o $@
 	@$(OBJDUMP) -d $@ >build/$(TARGET).asm
-	@$(SIZE) $<
+	@$(SIZE) $@
 
 build/$(TARGET).bin: build/$(TARGET).elf
 	@$(OBJCOPY) -O binary $< $@

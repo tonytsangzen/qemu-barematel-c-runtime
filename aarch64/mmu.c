@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "mm.h"
+#include "../lib/early_printf.h"
 #include "mmu_arch.h"
 
 #define ALIGN_DOWN(x, a) ((x) & ~((a)-1))

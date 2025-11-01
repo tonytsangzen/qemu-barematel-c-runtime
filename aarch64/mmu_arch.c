@@ -91,11 +91,9 @@ get page entry(virtual addr) by virtual address
 */
 page_table_entry_t* get_page_table_entry(page_dir_entry_t *vm, uint64_t virtual) {
 	page_table_entry_t *l2_table = 0;
-	page_table_entry_t *l3_table = 0;
 
 	uint32_t l1_index = PAGE_L1_INDEX(virtual);
 	uint32_t l2_index = PAGE_L2_INDEX(virtual);
-	uint32_t l3_index = PAGE_L3_INDEX(virtual);
 
 	l2_table = (page_table_entry_t*)P2V(vm[l1_index].Address << 12); 
 	return (page_table_entry_t*)P2V(l2_table[l2_index].Address << 12); 	
@@ -105,7 +103,6 @@ page_table_entry_t* get_page_table_entry(page_dir_entry_t *vm, uint64_t virtual)
 void free_page_tables(page_dir_entry_t *vm) {
 	page_table_entry_t *l2_table = 0;
 	page_table_entry_t *l3_table = 0;
-	int i,j;
 
 	for(int i = 0; i < PAGE_DIR_NUM; i++){
 		if(vm[i].EntryType != 0){
@@ -124,23 +121,21 @@ void free_page_tables(page_dir_entry_t *vm) {
 void dump_page_tables(page_dir_entry_t *vm){
 	page_table_entry_t *l2_table = 0;
 	page_table_entry_t *l3_table = 0;
-	int i,j;
 	printf("\n");
 	for(int i = 0; i < 4; i++){
 		if(vm[i].NSTable){
 			l2_table = (page_table_entry_t*)P2V(vm[i].Address << 12); 
-			printf("%08x:%016x\n", i<<30, *(uint64_t*)&vm[i]);
+			printf("%08x:%016lx\n", i<<30, *(uint64_t*)&vm[i]);
 			for(int j = 0; j < PAGE_DIR_NUM; j++){
 				if(l2_table[j].EntryType == TYPE_BLOCK){
-					printf("\t%08x:%16x\n", (i << 30) + (j << 21), *(uint64_t*)&l2_table[j]);	
+					printf("\t%08x:%16lx\n", (i << 30) + (j << 21), *(uint64_t*)&l2_table[j]);	
 				}
 				else if(l2_table[j].NSTable){
 					l3_table = (page_table_entry_t*)P2V(l2_table[j].Address << 12);
-					printf("\t%08x:%016x\n", (i << 30) + (j<<21),  *(uint64_t*)&l2_table[j]);
-					uint64_t chunk_start = 0;
+					printf("\t%08x:%016lx\n", (i << 30) + (j<<21),  *(uint64_t*)&l2_table[j]);
 					for(int k = 0; k < PAGE_DIR_NUM; k++)
 						if((uint64_t)l3_table[k].AF){
-							printf("\t\t%08x:%016x\n", (i << 30) + (j << 21) + (k << 12), *(uint64_t*)&l3_table[k]);
+							printf("\t\t%08x:%016lx\n", (i << 30) + (j << 21) + (k << 12), *(uint64_t*)&l3_table[k]);
 						}
 				}
 			}

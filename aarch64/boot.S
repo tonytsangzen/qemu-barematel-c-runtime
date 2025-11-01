@@ -5,8 +5,8 @@
 _entry:
     # Mask exceptions and interrupts
     msr DAIFSet, #0xf
-	
-	# Check if we are running in EL2 and switch to EL1
+    
+    # Check if we are running in EL2 and switch to EL1
     mrs x0, CurrentEL
     cmp x0, #4
     beq __el1_entry
@@ -24,15 +24,15 @@ _entry:
     adr x2, __el1_entry 
     msr ELR_EL2, x2
     eret
-	nop
+    nop
 
 .align 4
-__el1_entry:	
-	/* Disable Alignment check */
-	mrs     x0, sctlr_el1
-	bic     x0, x0, #(3 << 3)
-	bic     x0, x0, #(1 << 1)
-	msr     sctlr_el1, x0
+__el1_entry:    
+    /* Disable Alignment check */
+    mrs     x0, sctlr_el1
+    bic     x0, x0, #(3 << 3)
+    bic     x0, x0, #(1 << 1)
+    msr     sctlr_el1, x0
 
     # Disable the MMU
     mrs x0, SCTLR_EL1
@@ -46,17 +46,17 @@ __el1_entry:
     bfi x0, x1, #20, #2
     msr CPACR_EL1, x0
 
-	# Enable SMP
-	mrs x0, ACTLR_EL1
-	orr x0, x0, #0x40
-	msr ACTLR_EL1, x0
+    # Enable SMP
+    mrs x0, ACTLR_EL1
+    orr x0, x0, #0x40
+    msr ACTLR_EL1, x0
 
     # Set the el1 stack
-    msr spsel, #0x1	
-	adr x0, #_stack_top
+    msr spsel, #0x1    
+    adr x0, #_stack_top
     mov sp, x0
 
-	# Create a the first frame record, this should be 0
+    # Create a the first frame record, this should be 0
     mov fp, xzr
     mov lr, xzr
     stp fp, lr, [sp, #-16]!
@@ -77,16 +77,31 @@ __el1_entry:
     orr x0, x0, x1
     msr SCTLR_EL1, x0
 
-	bl mmu_init
+    bl clear_bss
+    bl mmu_init
 
-	adr x0, #interrupt_table_start
+    adr x0, #interrupt_table_start
     msr vbar_el1, x0
-	bl main
+    bl main
 
 _halt:
-	wfi
-	b	_halt
+    wfi
+    b    _halt
 
+.global clear_bss
+clear_bss:
+    ldr     x0, =__bss_start
+    ldr     x1, =__bss_end
+    
+clear_bss_loop:
+    cmp     x0, x1        
+    bge     clear_bss_done
+    
+    str     xzr, [x0], #8 
+    b       clear_bss_loop
+    
+clear_bss_done:
+    ret
 
 #define  MAIR1VAL ((0x00ul << (0 * 8)) |\
                    (0x04ul << (1 * 8)) |\
@@ -143,39 +158,39 @@ load_boot_pgt:
 .balign 0x800
 interrupt_table_start: /*interrupt table, with syscall and irq items*/
 /*Synchronous*/
-	b _undef_exception_entry
-.balign 0x80	/*IRQ*/ 
-	b _undef_exception_entry
-.balign 0x80	/*FIQ*/
-	b _undef_exception_entry
-.balign 0x80	/*sError*/
-	b _undef_exception_entry
-.balign 0x80	/*Synchronous*/
-	b _undef_exception_entry
-.balign 0x80	/*IRQ*/
-	b _undef_exception_entry
+    b _undef_exception_entry
+.balign 0x80    /*IRQ*/ 
+    b _undef_exception_entry
 .balign 0x80    /*FIQ*/
-	b _undef_exception_entry
-.balign 0x80	/*sError*/
-	b _undef_exception_entry
-.balign 0x80	 /*Synchronous*/
-	b _undef_exception_entry
+    b _undef_exception_entry
+.balign 0x80    /*sError*/
+    b _undef_exception_entry
+.balign 0x80    /*Synchronous*/
+    b _undef_exception_entry
+.balign 0x80    /*IRQ*/
+    b _undef_exception_entry
+.balign 0x80    /*FIQ*/
+    b _undef_exception_entry
+.balign 0x80    /*sError*/
+    b _undef_exception_entry
+.balign 0x80     /*Synchronous*/
+    b _undef_exception_entry
 .balign 0x80   /*IRQ*/
-	b _undef_exception_entry
-.balign 0x80	/*FIQ*/
-	b _undef_exception_entry
-.balign 0x80	/*sError*/
-	b	_undef_exception_entry
-.balign 0x80	 /*Synchronous*/
-	b _undef_exception_entry
+    b _undef_exception_entry
+.balign 0x80    /*FIQ*/
+    b _undef_exception_entry
+.balign 0x80    /*sError*/
+    b    _undef_exception_entry
+.balign 0x80     /*Synchronous*/
+    b _undef_exception_entry
 .balign 0x80   /*IRQ*/
-	b _undef_exception_entry
-.balign 0x80	/*FIQ*/
-	b _undef_exception_entry
-.balign 0x80	/*sError*/
-	b _undef_exception_entry 
+    b _undef_exception_entry
+.balign 0x80    /*FIQ*/
+    b _undef_exception_entry
+.balign 0x80    /*sError*/
+    b _undef_exception_entry 
 interrupt_table_end:
 
 .balign 0x80
 _undef_exception_entry:
-	b _undef_exception_entry
+    b _undef_exception_entry
