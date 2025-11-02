@@ -78,7 +78,7 @@ __el1_entry:
     msr SCTLR_EL1, x0
 
     bl clear_bss
-    bl mmu_init
+    bl __init__
 
     adr x0, #interrupt_table_start
     msr vbar_el1, x0

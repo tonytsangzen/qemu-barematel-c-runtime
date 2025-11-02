@@ -1,46 +1,17 @@
 #ifndef MMU_ARCH_H
 #define MMU_ARCH_H
 
-#include <stdint.h>
+#include "types.h"
 
-#define V2P(x) ((uint64_t)(x))
-#define P2V(x) ((uint64_t)(x))
-
-#define KB 1024
-#define MB (1024*KB)
-#define GB (1024*MB)
-
-#define PAGE_SIZE (4*KB)
 #define PAGE_TABLE_SIZE (4*KB)
 
-#define PAGE_DIR_NUM 512
-#define PAGE_DIR_SIZE (PAGE_DIR_NUM*8)
+#define PTE_ATTR_WRBACK          0
+#define PTE_ATTR_DEV             1
+#define PTE_ATTR_WRTHR           2
+#define PTE_ATTR_WRBACK_ALLOCATE 3
+#define PTE_ATTR_STRONG_ORDER    4
+#define PTE_ATTR_NOCACHE         5
 
-#define KERNEL_BASE                    0x80000000 //=2G virtual address start base.
-#define INTERRUPT_VECTOR_BASE          0xffff0000
-
-/* descriptor types */
-#define TYPE_INVALID	0
-#define TYPE_BLOCK		1
-#define TYPE_PAGE       3
-#define TYPE_TABLE		3
-
-#define PAGE_DIR_2LEVEL_TYPE 1
-
-/* access permissions */
-#define AP_RW_D  0x0
-#define AP_RW_RW 0x1
-#define AP_RO_D  0x2
-#define AP_RO_R  0x3
-#define AP_RW_R	 AP_RO_R
-
-#define PAGE_L1_INDEX(x) (((uint64_t)x >> 30) & 0x1FF) 
-#define PAGE_L2_INDEX(x) (((uint64_t)x >> 21) & 0x1FF)
-#define PAGE_L3_INDEX(x) (((uint64_t)x >> 12) & 0x1FF)
-
-#define PAGE_TABLE_TO_BASE(x) ((uint32_t)x >> 10)
-#define BASE_TO_PAGE_TABLE(x) ((void *) ((uint32_t)x << 10))
-#define PAGE_TO_BASE(x) ((uint32_t)x >> 12)
 
 typedef struct {
     uint64_t EntryType : 2;             // @0-1     1 for a block table, 3 for a page table
@@ -54,7 +25,7 @@ typedef struct {
         STAGE2_SH_INNER_SHAREABLE = 3,  //          Inner shareable
     } SH : 2;                           // @8-9
     uint64_t AF : 1;                    // @10      Accessable flag
-    uint64_t PTE_NG : 1;                // @11      no global 
+    uint64_t NG : 1;					// @11      no global 
     uint64_t Address : 36;              // @12-47   36 Bits of address
     uint64_t _reserved48_51 : 4;        // @48-51   Set to 0
     uint64_t Contiguous : 1;            // @52      Contiguous
@@ -72,31 +43,29 @@ typedef struct {
     uint64_t NSTable : 1;               // @63      Secure state, for accesses from Non-secure state this bit is RES0 and is ignored
 }page_table_entry_t, page_dir_entry_t;
 
+/*mmu function*/
+int 
+map_page(page_dir_entry_t *vm, uint64_t virtual_addr, uint64_t physical, uint32_t access_permissions, uint32_t pte_attr);
 
-#define  MT_DEVICE_NGNRNE  0
-#define  MT_DEVICE_NGNRE   1
-#define  MT_NORMAL_NC      2
-#define  MT_NORMAL         3
+void
+unmap_page(page_dir_entry_t *vm, uint64_t virtual_addr);
 
-void set_pte_flags(page_table_entry_t* pte, uint64_t pte_attr);
+uint64_t 
+resolve_phy_address(page_dir_entry_t *vm, uint64_t virtual);
 
-#define PTE_ATTR_WRBACK          0
-#define PTE_ATTR_DEV             1
-#define PTE_ATTR_WRTHR           2
-#define PTE_ATTR_WRBACK_ALLOCATE 3
-#define PTE_ATTR_STRONG_ORDER    4
-#define PTE_ATTR_NOCACHE         5
+page_table_entry_t* 
+get_page_table_entry(page_dir_entry_t *vm, uint64_t virtual);
 
-int32_t  map_page(page_dir_entry_t *vm, uint64_t virtual_addr, uint64_t physical,
-	                uint32_t access_permissions, uint32_t pte_attr);
-void  unmap_page(page_dir_entry_t *vm, uint64_t virtual_addr);
-uint64_t resolve_phy_address(page_dir_entry_t *vm, uint64_t virtual);
-page_table_entry_t* get_page_table_entry(page_dir_entry_t *vm, uint64_t virtual);
-void free_page_tables(page_dir_entry_t *vm);
+void 
+free_page_tables(page_dir_entry_t *vm);
 
-void __set_translation_table_base(uint64_t);
-void __flush_tlb(void);
+void 
+set_translation_table_base(uint64_t);
 
-void clear_cache(void *start, void *end);
+void 
+flush_tlb(void);
+
+void 
+flush_cache(void *start, void *end);
 
 #endif

@@ -1,29 +1,6 @@
-#include <stdint.h>
-#include <stdio.h>
 #include "mm.h"
-#include "../lib/early_printf.h"
 #include "mmu_arch.h"
-
-#define ALIGN_DOWN(x, a) ((x) & ~((a)-1))
-#define ALIGN_UP(x, a)   (((x)+(a)-1) & ~((a)-1))
-
-/* unmap_page clears the mapping for the given virtual address */
-void unmap_page(page_dir_entry_t *vm, uint64_t virtual_addr) {
-	page_table_entry_t *l2_table = 0;
-	page_table_entry_t *l3_table = 0;
-
-	uint32_t l1_index = PAGE_L1_INDEX(virtual_addr);
-	uint32_t l2_index = PAGE_L2_INDEX(virtual_addr);
-	uint32_t l3_index = PAGE_L3_INDEX(virtual_addr);
-
-	if(vm[l1_index].EntryType != 0){
-		l2_table = (page_dir_entry_t*)P2V(vm[l1_index].Address << 12);
-		if(l2_table[l2_index].EntryType != 0){
-			l3_table = (page_dir_entry_t*)P2V(l2_table[l2_index].Address << 12);
-			l3_table[l3_index].EntryType = 0;	
-		}
-	}
-}
+#include "mmu.h"
 
 void map_pages(page_dir_entry_t *vm, uint64_t vaddr, uint64_t pstart, uint64_t pend, uint32_t permissions, uint32_t pte_attr) {
     uint64_t physical_current = 0;
@@ -52,16 +29,4 @@ void unmap_pages(page_dir_entry_t *vm, uint64_t virtual_addr, uint64_t pages) {
     for(i=0; i<pages; i++) {
         unmap_page(vm, virtual_addr + PAGE_SIZE*i);
     }
-}
-
-extern void load_boot_pgt(page_dir_entry_t *page_table);
-extern uint64_t _page_tbl_start;
-
-void mmu_init(void)
-{
-    mm_init(&_page_tbl_start, 16*MB);
-    page_dir_entry_t *vm = page_calloc(1);
-    map_pages_size(vm, 0x8000000, 0x8000000, 128*MB, 0, PTE_ATTR_DEV);
-    map_pages_size(vm, 0x40000000, 0x40000000, 128*MB, 0, PTE_ATTR_DEV);
-    load_boot_pgt(vm);
 }
