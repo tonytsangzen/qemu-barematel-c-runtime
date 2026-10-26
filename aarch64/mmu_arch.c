@@ -104,6 +104,25 @@ uint64_t resolve_phy_address(page_dir_entry_t *vm, uint64_t virtual) {
 	return phy;
 }
 
+uint64_t resolve_virt_address(page_dir_entry_t *vm, uint64_t phys) {
+	page_table_entry_t *l2_table = 0;
+	page_table_entry_t *l3_table = 0;
+
+	for(int i = 0; i < PAGE_DIR_NUM; i++){
+		if(vm[i].EntryType != 0){
+			l2_table = (page_table_entry_t*)P2V(vm[i].Address << 12); 
+			for(int j = 0; j < PAGE_DIR_NUM; j++){
+				if(l2_table[j].EntryType != 0){
+					l3_table = (page_table_entry_t*)P2V(l2_table[j].Address << 12);
+					mm_page_free(l3_table, 1);
+				}
+			}
+			mm_page_free(l2_table, 1);
+		}
+	}
+
+}
+
 /*
 get page entry(virtual addr) by virtual address
 */
